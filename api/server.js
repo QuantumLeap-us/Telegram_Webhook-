@@ -6,8 +6,8 @@ const app = express();
 app.use(express.json());
 
 // 替换为你的 Telegram 机器人信息
-const TELEGRAM_BOT_TOKEN = "YOUR_TELEGRAM_BOT_TOKEN";
-const TELEGRAM_CHAT_ID = "YOUR_CHAT_ID";
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 
 // Webhook 接口处理邮件通知
 app.post("/api/webhook", async (req, res) => {
