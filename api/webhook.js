@@ -2,34 +2,35 @@ const express = require("express");
 const axios = require("axios");
 
 const app = express();
-app.use(express.json());
+app.use(express.json()); // Middleware to parse incoming JSON requests
 
-// Telegram Bot 配置
-const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
+// Telegram Bot Configuration
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN; // Token for Telegram Bot
+const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID; // Chat ID for the Telegram Bot to send messages
 
-// 检查环境变量
+// Exit if environment variables are not set
 if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
   console.error("Missing TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID environment variables");
   process.exit(1);
 }
 
-// GET 方法，用于调试 Webhook 是否正常运行
+// GET endpoint to check if the webhook is running
 app.get("/api/webhook", (req, res) => {
   res.status(200).send("Webhook is running!");
 });
 
-// POST 方法，处理 Webhook 数据并发送到 Telegram
+// POST endpoint to handle incoming webhook data and send it to Telegram
 app.post("/api/webhook", async (req, res) => {
   try {
+    // Extracting data from the incoming request
     const { subject, fromAddress, content } = req.body;
 
-    // 验证请求体内容
+    // Validate required fields
     if (!subject || !fromAddress || !content) {
       return res.status(400).send({ error: "Missing required fields in request body" });
     }
 
-    // 构造美化后的消息
+    // Construct a formatted message to send to Telegram
     const message = `
 📧 <b>New Email Received</b>:
 ✉️ <b>From</b>: ${fromAddress}
@@ -39,64 +40,72 @@ app.post("/api/webhook", async (req, res) => {
 <pre>${content}</pre>
 `;
 
-    // 发送消息到 Telegram，附加删除按钮
+    // Send the message to Telegram with an inline button for deletion
     await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
       chat_id: TELEGRAM_CHAT_ID,
       text: message,
-      parse_mode: "HTML",
+      parse_mode: "HTML", // Use HTML for formatting
       reply_markup: {
         inline_keyboard: [
           [
             {
-              text: "🗑️ Delete Email", // 按钮文本
-              callback_data: "delete_email", // 回调数据
+              text: "🗑️ Delete Email", // Text for the delete button
+              callback_data: "delete_email", // Data sent back when the button is clicked
             },
           ],
         ],
       },
     });
 
+    // Respond with success after sending the message
     res.status(200).send({ message: "Webhook received and message sent to Telegram!" });
   } catch (error) {
+    // Log errors and respond with an error message
     console.error("Error sending message to Telegram:", error.message);
     res.status(500).send({ error: "Failed to send message to Telegram" });
   }
 });
 
-// 处理删除按钮的回调事件
+// POST endpoint to handle Telegram button callback queries
 app.post("/api/telegram-callback", async (req, res) => {
   try {
-    console.log("Callback received:", req.body); // 打印回调数据，便于调试
+    // Log callback data for debugging
+    console.log("Callback received:", JSON.stringify(req.body, null, 2));
 
     const { callback_query } = req.body;
 
+    // Ensure callback_query exists in the request body
     if (callback_query) {
-      const chat_id = callback_query.message.chat.id; // 获取 Chat ID
-      const message_id = callback_query.message.message_id; // 获取消息 ID
+      const chat_id = callback_query.message.chat.id; // Extract Chat ID
+      const message_id = callback_query.message.message_id; // Extract Message ID
 
-      // 如果回调数据为 "delete_email"，则执行删除操作
+      // Check if the callback data matches "delete_email"
       if (callback_query.data === "delete_email") {
-        // 调用 Telegram API 删除消息
+        // Call Telegram API to delete the message
         await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/deleteMessage`, {
           chat_id,
           message_id,
         });
 
-        // 给用户发送反馈
+        // Send feedback to the user after deleting the message
         await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
           chat_id,
           text: "🗑️ Email deleted successfully!",
         });
 
+        // Respond to Telegram that the callback was processed
         return res.status(200).send("Message deleted");
       }
     }
 
+    // Respond with an error if no valid callback data was received
     res.status(400).send("No valid callback query received");
   } catch (error) {
+    // Log errors and respond with a failure message
     console.error("Error processing callback:", error.message);
     res.status(500).send({ error: "Failed to process callback" });
   }
 });
 
+// Export the Express app for Vercel
 module.exports = app;
