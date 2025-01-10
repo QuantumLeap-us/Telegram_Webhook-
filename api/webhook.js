@@ -8,24 +8,23 @@ app.use(express.json()); // 用于解析 JSON 数据
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 
-// 确保环境变量已正确配置
+// 如果环境变量未设置，抛出错误并终止
 if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
   console.error("Missing TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID environment variables");
-  process.exit(1); // 终止程序
+  process.exit(1);
 }
 
-// 定义 GET 方法用于调试
+// GET 方法用于调试
 app.get("/api/webhook", (req, res) => {
-  res.status(200).send("Webhook is running and ready to receive POST requests!");
+  res.status(200).send("Webhook is running!");
 });
 
-// 定义 POST 方法用于接收 Webhook 数据
+// POST 方法处理 Webhook 数据
 app.post("/api/webhook", async (req, res) => {
   try {
-    // 从请求中提取数据（确保数据格式正确）
     const { subject, fromAddress, content } = req.body;
 
-    // 如果缺少关键字段，返回错误
+    // 验证请求体内容
     if (!subject || !fromAddress || !content) {
       return res.status(400).send({ error: "Missing required fields in request body" });
     }
@@ -38,7 +37,7 @@ app.post("/api/webhook", async (req, res) => {
 📝 *Content*: ${content}
 `;
 
-    // 调用 Telegram API 推送消息
+    // 调用 Telegram API
     const telegramResponse = await axios.post(
       `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
       {
@@ -49,13 +48,9 @@ app.post("/api/webhook", async (req, res) => {
     );
 
     console.log("Message sent to Telegram:", telegramResponse.data);
-
-    // 返回成功响应
     res.status(200).send({ message: "Webhook received and message sent to Telegram!" });
   } catch (error) {
-    console.error("Error processing webhook:", error.message);
-
-    // 如果 Telegram API 请求失败，返回错误信息
+    console.error("Error processing webhook:", error.response?.data || error.message);
     res.status(500).send({ error: "Failed to send message to Telegram" });
   }
 });
