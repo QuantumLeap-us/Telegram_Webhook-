@@ -1,52 +1,63 @@
 const express = require("express");
-const serverless = require("serverless-http"); // 用于适配 Serverless
 const axios = require("axios");
 
 const app = express();
-app.use(express.json());
+app.use(express.json()); // 用于解析 JSON 数据
 
-// 替换为你的 Telegram 机器人信息
+// 从环境变量中读取 Telegram 配置信息
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 
-// Webhook 接口处理邮件通知
+// 确保环境变量已正确配置
+if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
+  console.error("Missing TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID environment variables");
+  process.exit(1); // 终止程序
+}
+
+// 定义 GET 方法用于调试
+app.get("/api/webhook", (req, res) => {
+  res.status(200).send("Webhook is running and ready to receive POST requests!");
+});
+
+// 定义 POST 方法用于接收 Webhook 数据
 app.post("/api/webhook", async (req, res) => {
   try {
-    // 从请求体中提取邮件内容
-    const { subject, fromAddress, content, receivedAt } = req.body;
+    // 从请求中提取数据（确保数据格式正确）
+    const { subject, fromAddress, content } = req.body;
 
-    // 构造要发送到 Telegram 的消息
+    // 如果缺少关键字段，返回错误
+    if (!subject || !fromAddress || !content) {
+      return res.status(400).send({ error: "Missing required fields in request body" });
+    }
+
+    // 构造发送到 Telegram 的消息
     const message = `
-📧 *新邮件通知*:
-✉️ *发件人*: ${fromAddress}
-📜 *主题*: ${subject}
-🕒 *接收时间*: ${receivedAt}
-
-📖 *内容*:
-${content}
+📧 *New Email Received*:
+✉️ *From*: ${fromAddress}
+📜 *Subject*: ${subject}
+📝 *Content*: ${content}
 `;
 
-    // 发送消息到 Telegram
+    // 调用 Telegram API 推送消息
     const telegramResponse = await axios.post(
       `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
       {
         chat_id: TELEGRAM_CHAT_ID,
         text: message,
-        parse_mode: "Markdown", // 启用格式化
+        parse_mode: "Markdown",
       }
     );
 
-    console.log("邮件通知发送到 Telegram:", telegramResponse.data);
+    console.log("Message sent to Telegram:", telegramResponse.data);
 
-    // 响应 Webhook 服务器
-    res.status(200).send({ message: "邮件已推送到 Telegram！" });
+    // 返回成功响应
+    res.status(200).send({ message: "Webhook received and message sent to Telegram!" });
   } catch (error) {
-    console.error("推送到 Telegram 时出错:", error.response?.data || error.message);
-    res.status(500).send({ message: "推送失败！" });
+    console.error("Error processing webhook:", error.message);
+
+    // 如果 Telegram API 请求失败，返回错误信息
+    res.status(500).send({ error: "Failed to send message to Telegram" });
   }
 });
 
-// 导出为 Vercel 的 Serverless Function
 module.exports = app;
-module.exports.handler = serverless(app);
-
