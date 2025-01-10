@@ -6,7 +6,7 @@ app.use(express.json()); // Middleware to parse incoming JSON requests
 
 // Telegram Bot Configuration
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN; // Token for Telegram Bot
-const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID; // Chat ID for the Telegram Bot to send messages
+const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID; // Chat ID for Telegram Bot to send messages
 
 // Exit if environment variables are not set
 if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
@@ -82,10 +82,12 @@ app.post("/api/telegram-callback", async (req, res) => {
       // Check if the callback data matches "delete_email"
       if (callback_query.data === "delete_email") {
         // Call Telegram API to delete the message
-        await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/deleteMessage`, {
+        const deleteResponse = await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/deleteMessage`, {
           chat_id,
           message_id,
         });
+
+        console.log("Delete response:", deleteResponse.data);
 
         // Send feedback to the user after deleting the message
         await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
@@ -102,7 +104,7 @@ app.post("/api/telegram-callback", async (req, res) => {
     res.status(400).send("No valid callback query received");
   } catch (error) {
     // Log errors and respond with a failure message
-    console.error("Error processing callback:", error.message);
+    console.error("Error processing callback:", error.message, error.response?.data);
     res.status(500).send({ error: "Failed to process callback" });
   }
 });
