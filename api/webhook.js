@@ -69,45 +69,47 @@ app.post("/api/webhook", async (req, res) => {
 // POST endpoint to handle Telegram button callback queries
 app.post("/api/telegram-callback", async (req, res) => {
   try {
-    // Log callback data for debugging
     console.log("Callback received:", JSON.stringify(req.body, null, 2));
 
     const { callback_query } = req.body;
 
-    // Ensure callback_query exists in the request body
-    if (callback_query) {
-      const chat_id = callback_query.message.chat.id; // Extract Chat ID
-      const message_id = callback_query.message.message_id; // Extract Message ID
-
-      // Check if the callback data matches "delete_email"
-      if (callback_query.data === "delete_email") {
-        // Call Telegram API to delete the message
-        const deleteResponse = await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/deleteMessage`, {
-          chat_id,
-          message_id,
-        });
-
-        console.log("Delete response:", deleteResponse.data);
-
-        // Send feedback to the user after deleting the message
-        await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
-          chat_id,
-          text: "🗑️ Email deleted successfully!",
-        });
-
-        // Respond to Telegram that the callback was processed
-        return res.status(200).send("Message deleted");
-      }
+    if (!callback_query) {
+      console.warn("No callback_query received");
+      return res.status(400).send("No callback_query received");
     }
 
-    // Respond with an error if no valid callback data was received
-    res.status(400).send("No valid callback query received");
+    const chat_id = callback_query.message.chat.id;
+    const message_id = callback_query.message.message_id;
+
+    console.log("chat_id:", chat_id);
+    console.log("message_id:", message_id);
+
+    if (callback_query.data === "delete_email") {
+      
+      const deleteResponse = await axios.post(
+        `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/deleteMessage`,
+        {
+          chat_id,
+          message_id,
+        }
+      );
+
+      console.log("Delete response:", deleteResponse.data);
+
+      await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+        chat_id,
+        text: "🗑️ Email deleted successfully!",
+      });
+
+      return res.status(200).send("Message deleted");
+    } else {
+      console.warn("Unexpected callback data:", callback_query.data);
+      return res.status(400).send("Unexpected callback data");
+    }
   } catch (error) {
-    // Log errors and respond with a failure message
     console.error("Error processing callback:", error.message, error.response?.data);
     res.status(500).send({ error: "Failed to process callback" });
   }
 });
-
 // Export the Express app for Vercel
 module.exports = app;
